@@ -1,0 +1,9 @@
+# Hébergement Netlify : site statique, aucune compilation.
+[build]
+  publish = "."
+  command = ""
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"

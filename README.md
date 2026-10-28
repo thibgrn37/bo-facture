@@ -11,7 +11,7 @@ Application pour réunir, classer et suivre toutes les factures et tickets de ca
 - Export CSV pour le comptable.
 - Installable sur l'écran d'accueil du téléphone, comme une appli.
 
-Technique : site statique (HTML/JS, aucune compilation) hébergé sur GitHub Pages, avec les données, les photos et la connexion sur Supabase. La lecture des tickets passe par une fonction serveur Supabase qui appelle l'API Claude d'Anthropic.
+Technique : site statique (HTML/JS, aucune compilation) hébergé sur Netlify (ou GitHub Pages), avec les données, les photos et la connexion sur Supabase. La lecture des tickets passe par une fonction serveur Supabase qui appelle l'API Claude d'Anthropic.
 
 ---
 
@@ -40,12 +40,18 @@ Seules ces deux adresses peuvent voir et modifier les factures. Pour en ajouter 
 
 La clé API reste sur le serveur Supabase : elle n'est jamais envoyée dans l'app ni dans ce dépôt. Sans cette étape, l'app fonctionne quand même, mais vous remplissez les champs à la main.
 
-### 4. Mettre l'app en ligne avec GitHub Pages
+### 4. Mettre l'app en ligne
 
-1. Dans le dépôt GitHub, ouvrez **Settings > Pages**.
-2. Dans **Source**, choisissez **Deploy from a branch**, puis la branche **main** et le dossier **/ (root)**. Enregistrez.
-3. Une à deux minutes plus tard, l'adresse de l'app s'affiche, du type `https://VOTRE-NOM.github.io/bo-facture/`.
-4. Dans Supabase, ouvrez **Authentication > URL Configuration** et collez cette adresse dans **Site URL**. C'est nécessaire pour le lien « Mot de passe oublié ».
+**Avec Netlify (gratuit, dépôt privé possible)**
+
+1. Allez sur **app.netlify.com** et connectez-vous avec **GitHub**.
+2. Cliquez sur **Add new site > Import an existing project > GitHub**, autorisez Netlify, puis choisissez `bo-facture`.
+3. Laissez les réglages tels quels (ils viennent de `netlify.toml`) et cliquez sur **Deploy**.
+4. L'adresse de l'app s'affiche, du type `https://xxxx.netlify.app`. Vous pouvez la renommer dans *Site configuration > Change site name*. Chaque modification du code est ensuite mise en ligne automatiquement.
+
+**Ou avec GitHub Pages (seulement si le dépôt est public, ou avec GitHub Pro)** : *Settings > Pages > Deploy from a branch > main / (root)*.
+
+Ensuite, dans Supabase, ouvrez **Authentication > URL Configuration** et collez l'adresse de l'app dans **Site URL**. C'est nécessaire pour le lien « Mot de passe oublié ».
 
 ### 5. Installer l'app sur les téléphones
 
