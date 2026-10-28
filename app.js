@@ -553,12 +553,28 @@ async function readReceipt(previews){
   const images = await Promise.all(previews.slice(0,3).map(async b => ({media_type:"image/jpeg", data:await blobToB64(b)})));
   const {data, error} = await sb.functions.invoke("read-receipt", {body:{images, categories:S.settings.categories}});
   if (error){
-    let code = "error";
-    try { code = (await error.context?.json())?.error || code; } catch {}
+    const status = error.context?.status || 0;
+    let body = null;
+    try { body = await error.context?.json(); } catch {}
+    let code = body?.error || (status === 404 || body?.code === "NOT_FOUND" ? "not_deployed" : status === 401 ? "session" : "error");
     if (error.name === "FunctionsFetchError" || error.name === "FunctionsRelayError") code = "unreachable";
-    throw {code};
+    throw {code, status, detail:body?.detail || body?.message || error.message || ""};
   }
   return data;
+}
+function ocrErrorText(e){
+  const c = e?.code, d = String(e?.detail || "");
+  if (c === "not_deployed") return "La fonction de lecture n'est pas installée dans Supabase (étape 3 du guide : Edge Functions, nom « read-receipt »).";
+  if (c === "unreachable") return "Le service de lecture ne répond pas : vérifiez votre réseau, et que la fonction « read-receipt » est bien déployée dans Supabase.";
+  if (c === "session") return "Session expirée : déconnectez-vous puis reconnectez-vous.";
+  if (c === "not_allowed") return "Votre compte n'est pas dans la liste des membres autorisés (table « members »).";
+  if (c === "missing_api_key") return "La clé API Anthropic n'est pas configurée : ajoutez le secret ANTHROPIC_API_KEY dans Supabase (Edge Functions > Secrets).";
+  if (c === "bad_api_key") return "La clé API Anthropic est refusée : vérifiez le secret ANTHROPIC_API_KEY dans Supabase.";
+  if (c === "rate_limited") return "Trop de lectures d'affilée. Réessayez dans un moment.";
+  if (c === "api_error" && /credit|balance|billing/i.test(d)) return "Plus de crédit sur le compte API Anthropic : ajoutez du crédit dans console.anthropic.com (Billing).";
+  if (c === "api_error") return "Le service de lecture a renvoyé une erreur" + (d ? " : " + d.slice(0, 160) : ".");
+  if (c === "refused" || c === "unreadable" || c === "no_image") return "La photo n'a pas pu être lue. Reprenez-la bien à plat, nette et éclairée.";
+  return `Le ticket n'a pas pu être lu (${c || "erreur"}${e?.status ? " " + e.status : ""}${d ? " : " + d.slice(0, 120) : ""}).`;
 }
 
 /* ---------- fiche facture ---------- */
@@ -676,11 +692,7 @@ function openForm(inv, file){
         ocrBox("done", "Champs remplis automatiquement. Vérifiez avant d'enregistrer.");
       } catch (e) {
         const c = e?.code;
-        ocrBox("fail",
-          c === "rate_limited" ? "Trop de lectures d'affilée. Remplissez les champs ou réessayez dans un moment." :
-          (c === "missing_api_key" || c === "bad_api_key") ? "Lecture automatique pas encore configurée (clé API manquante). Remplissez les champs." :
-          c === "unreachable" ? "Lecture automatique indisponible (fonction non installée ou pas de réseau). Remplissez les champs." :
-          "Le ticket n'a pas pu être lu. Remplissez les champs.");
+        ocrBox("fail", ocrErrorText(e) + " Remplissez les champs à la main.");
       }
     }).catch(() => ocrBox("fail", "Ce fichier n'a pas pu être ouvert. Essayez une photo JPEG ou un PDF."));
   }

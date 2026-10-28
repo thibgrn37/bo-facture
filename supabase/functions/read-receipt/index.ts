@@ -96,15 +96,28 @@ Deno.serve(async (req) => {
   };
 
   try {
-    let response;
-    try {
-      // Si un filtre de sécurité refuse la demande, l'API réessaie automatiquement avec un autre modèle.
+    // 1) sortie JSON garantie + repli automatique si un filtre de sécurité refuse
+    // 2) même chose sans le repli (paramètre bêta)
+    // 3) sans format imposé : le texte demande déjà un objet JSON
+    const plain = { ...params, output_config: { effort: "low" }, messages: [{ role: "user", content: [
+      ...content.slice(0, -1), { type: "text" as const, text: prompt + "\nRéponds uniquement avec l'objet JSON (clés ci-dessus), sans texte autour." },
+    ] }] };
+    const attempts = [
       // deno-lint-ignore no-explicit-any
-      response = await client.beta.messages.create({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" } as any);
-    } catch (e) {
-      if (!(e instanceof Anthropic.BadRequestError)) throw e;
+      () => client.beta.messages.create({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" } as any),
       // deno-lint-ignore no-explicit-any
-      response = await client.messages.create(params as any);
+      () => client.messages.create(params as any),
+      // deno-lint-ignore no-explicit-any
+      () => client.messages.create(plain as any),
+    ];
+    // deno-lint-ignore no-explicit-any
+    let response: any;
+    for (let i = 0; i < attempts.length; i++) {
+      try { response = await attempts[i](); break; } catch (e) {
+        const last = i === attempts.length - 1;
+        if (last || !(e instanceof Anthropic.BadRequestError) || /credit|balance|billing/i.test(String(e.message))) throw e;
+        console.warn("tentative", i + 1, "refusée :", e.message);
+      }
     }
     if (response.stop_reason === "refusal") return json({ error: "refused" }, 422);
     const text = response.content
@@ -119,9 +132,9 @@ Deno.serve(async (req) => {
     if (e instanceof Anthropic.AuthenticationError) return json({ error: "bad_api_key" }, 500);
     if (e instanceof Anthropic.APIError) {
       console.error("Anthropic API error", e.status, e.message);
-      return json({ error: "api_error", status: e.status }, 502);
+      return json({ error: "api_error", status: e.status, detail: String(e.message ?? "").slice(0, 300) }, 502);
     }
     console.error(e);
-    return json({ error: "server_error" }, 500);
+    return json({ error: "server_error", detail: String((e as Error)?.message ?? e).slice(0, 300) }, 500);
   }
 });
